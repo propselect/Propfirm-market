@@ -1,0 +1,112 @@
+{
+  "entities": {
+    "PropFirm": {
+      "title": "Prop Firm",
+      "description": "A forex prop firm entity",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "rating": { "type": "string", "enum": ["good", "medium", "bad"] },
+        "websiteUrl": { "type": "string", "format": "uri" },
+        "logoUrl": { "type": "string", "format": "uri" },
+        "description": { "type": "string" },
+        "pros": { "type": "array", "items": { "type": "string" } },
+        "cons": { "type": "array", "items": { "type": "string" } },
+        "startingBalance": { "type": "string" },
+        "maxLeverage": { "type": "string" },
+        "profitSplit": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "rating", "websiteUrl"]
+    },
+    "User": {
+      "title": "User",
+      "description": "A user profile",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "A user review for a prop firm",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "firmId": { "type": "string" },
+        "firmName": { "type": "string" },
+        "rating": { "type": "number", "minimum": 1, "maximum": 5 },
+        "comment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "rating", "comment", "firmId"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "A user report/flag for a prop firm",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "userEmail": { "type": "string" },
+        "firmId": { "type": "string" },
+        "reason": { "type": "string" },
+        "details": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "firmId", "reason"]
+    },
+    "Vote": {
+      "title": "Vote",
+      "description": "A user vote for a prop firm",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "firmId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "firmId"],
+      "createdAt": { "type": "string", "format": "date-time" }
+    },
+    "Subscriber": {
+      "title": "Subscriber",
+      "description": "A newsletter subscriber",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "source": { "type": "string" }
+      },
+      "required": ["email"]
+    }
+  },
+  "firestore": {
+    "/subscribers": {
+      "schema": "Subscriber",
+      "description": "Collection of newsletter subscribers"
+    },
+    "/firms": {
+      "schema": "PropFirm",
+      "description": "Collection of prop firms"
+    },
+    "/users": {
+      "schema": "User",
+      "description": "Collection of user profiles"
+    },
+    "/firms/{firmId}/reviews": {
+      "schema": "Review",
+      "description": "Subcollection of reviews for a specific firm"
+    },
+    "/reports": {
+      "schema": "Report",
+      "description": "Log of flagged reports"
+    },
+    "/votes": {
+      "schema": "Vote",
+      "description": "Collection of votes to prevent multiple votes per user per firm"
+    }
+  }
+}

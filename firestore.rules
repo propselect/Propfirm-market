@@ -1,0 +1,132 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'tafareabdulmalik@gmail.com' && 
+        request.auth.token.email_verified == true
+      );
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // --- Collections ---
+
+    // Reviews (Collection Group for global queries)
+    match /{path=**}/reviews/{reviewId} {
+      allow read: if true;
+      
+      function incoming() { return request.resource.data; }
+      function existing() { return resource.data; }
+
+      function isValidReview(data) {
+        return isSignedIn() &&
+               data.userId == request.auth.uid &&
+               isValidId(data.userId) &&
+               data.rating is number && data.rating >= 1 && data.rating <= 5 &&
+               data.comment is string && data.comment.size() <= 2000;
+      }
+
+      allow create: if isSignedIn() && isValidReview(incoming()) && 
+                    incoming().createdAt == request.time;
+      
+      allow update: if isSignedIn() && 
+                    (isAdmin() || existing().userId == request.auth.uid) &&
+                    incoming().userId == existing().userId &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['comment', 'rating', 'updatedAt', 'userName']) &&
+                    incoming().updatedAt == request.time;
+                    
+      allow delete: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
+    }
+
+    // Firms: Publicly readable, admin-only writes
+    match /firms/{firmId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // Reports: Authenticated create, admin read/delete
+    match /reports/{reportId} {
+      allow create: if isSignedIn() && 
+                    request.resource.data.userId == request.auth.uid &&
+                    request.resource.data.createdAt == request.time;
+      allow read, delete: if isAdmin();
+    }
+
+    // Votes: Public read, authenticated individual write
+    match /votes/{voteId} {
+      allow read: if true;
+      
+      function isValidVote(data) {
+        return isSignedIn() &&
+               data.userId == request.auth.uid &&
+               isValidId(data.userId) &&
+               isValidId(data.firmId);
+      }
+      
+      allow create: if isSignedIn() && 
+                    isValidVote(request.resource.data) &&
+                    voteId == request.auth.uid + "_" + request.resource.data.firmId &&
+                    request.resource.data.createdAt == request.time;
+                    
+      allow delete: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+    }
+
+    // Users: Private data
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      
+      function isValidUser(data) {
+        return data.keys().hasAll(['email', 'uid', 'createdAt']) &&
+               data.email is string && data.email.size() <= 256 &&
+               data.uid == userId;
+      }
+
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && 
+                    isValidUser(request.resource.data) &&
+                    request.resource.data.email == resource.data.email;
+      allow delete: if isOwner(userId) || isAdmin();
+    }
+
+    // Subscribers: Newsletter
+    match /subscribers/{subscriberId} {
+      allow create: if request.resource.data.email is string && 
+                      request.resource.data.email.size() <= 256 &&
+                      request.resource.data.createdAt == request.time;
+      allow read, list, delete: if isAdmin();
+    }
+
+    // Admins list (if needed as a collection)
+    match /admins/{userId} {
+      allow read: if isSignedIn();
+      allow write: if false; // Only manageable via console or super admin
+    }
+
+    // Connectivity test path
+    match /test/connection {
+      allow read: if true;
+    }
+    match /system/ping {
+      allow read: if true;
+    }
+
+  }
+}
