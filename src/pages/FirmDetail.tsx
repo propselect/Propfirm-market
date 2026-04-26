@@ -5,7 +5,7 @@ import { CheckCircle2, XCircle, ExternalLink, ArrowLeft, Trophy, Shield, Globe, 
 import { getRatingColor, getRatingLabel, getDynamicRating } from '../lib/theme';
 import { motion } from 'motion/react';
 import { db, auth } from '../lib/firebase';
-import { collection, query, where, getDocs, onSnapshot, doc, setDoc, deleteDoc, collectionGroup } from 'firebase/firestore';
+import { collection, query, where, getDocs, onSnapshot, doc, setDoc, deleteDoc, collectionGroup, serverTimestamp } from 'firebase/firestore';
 import { PropFirm } from '../types';
 import ReviewSection from '../components/ReviewSection';
 import ReportFirmModal from '../components/ReportFirmModal';
@@ -59,7 +59,7 @@ export default function FirmDetail() {
 
   React.useEffect(() => {
     if (!firm?.id) return;
-    const reviewsQ = query(collectionGroup(db, 'reviews'), where('firmId', '==', firm.id));
+    const reviewsQ = query(collection(db, 'firms', firm.id, 'reviews'));
     const unsubscribe = onSnapshot(reviewsQ, (snapshot) => {
       const docs = snapshot.docs;
       if (docs.length > 0) {
@@ -70,9 +70,8 @@ export default function FirmDetail() {
       }
     }, (error) => {
       console.error('Review snapshot failed:', error);
-      // We use a custom path for CG errors in the log
       import('../lib/firebase-errors').then(({ handleFirestoreError, OperationType }) => {
-        handleFirestoreError(error, OperationType.LIST, `reviews_group/${firm.id}`);
+        handleFirestoreError(error, OperationType.LIST, `firms/${firm.id}/reviews`);
       });
     });
 
@@ -96,7 +95,7 @@ export default function FirmDetail() {
         await setDoc(voteRef, {
           userId: user.uid,
           firmId: firm.id,
-          createdAt: new Date().toISOString()
+          createdAt: serverTimestamp()
         });
       }
     } catch (error) {

@@ -5,7 +5,7 @@ import { Link } from 'react-router-dom';
 import { getRatingColor, getRatingLabel, getDynamicRating } from '../../lib/theme';
 import { motion } from 'motion/react';
 import { db, auth } from '../../lib/firebase';
-import { collection, query, where, onSnapshot, setDoc, doc, deleteDoc, getDocs, collectionGroup } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, setDoc, doc, deleteDoc, getDocs, collectionGroup, serverTimestamp } from 'firebase/firestore';
 import { useAuthState } from 'react-firebase-hooks/auth';
 import { handleFirestoreError, OperationType } from '../../lib/firebase-errors';
 
@@ -45,7 +45,7 @@ export default function FirmCard({ firm, index }: FirmCardProps) {
   }, [firm.id, user]);
 
   React.useEffect(() => {
-    const reviewsQ = query(collectionGroup(db, 'reviews'), where('firmId', '==', firm.id));
+    const reviewsQ = query(collection(db, 'firms', firm.id, 'reviews'));
     const unsubscribeReviews = onSnapshot(reviewsQ, (snapshot) => {
       const docs = snapshot.docs;
       if (docs.length > 0) {
@@ -55,7 +55,7 @@ export default function FirmCard({ firm, index }: FirmCardProps) {
         setAvgRating(0);
       }
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, `reviews_group/${firm.id}`);
+      handleFirestoreError(error, OperationType.LIST, `firms/${firm.id}/reviews`);
     });
 
     return () => unsubscribeReviews();
@@ -81,7 +81,7 @@ export default function FirmCard({ firm, index }: FirmCardProps) {
         await setDoc(voteRef, {
           userId: user.uid,
           firmId: firm.id,
-          createdAt: new Date().toISOString()
+          createdAt: serverTimestamp()
         });
       }
     } catch (error) {

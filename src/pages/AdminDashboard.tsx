@@ -37,14 +37,21 @@ export default function AdminDashboard() {
   React.useEffect(() => {
     if (!user) return;
 
-    // Check if user is admin
+    // Check if user is admin via token email (primary) or doc (fallback)
+    const adminEmail = 'tafareabdulmalik@gmail.com';
+    const isTokenAdmin = user.email === adminEmail;
+    
+    if (isTokenAdmin) {
+      setIsAdmin(true);
+      setLoading(false);
+      return;
+    }
+
+    // Fallback to doc check
     const unsubAdmin = onSnapshot(doc(db, 'admins', user.uid), (snapshot) => {
       const exists = snapshot.exists();
       setIsAdmin(exists);
-      
-      if (!exists) {
-        setLoading(false);
-      }
+      setLoading(false);
     }, (err) => {
       console.error("Admin verification failed:", err);
       setIsAdmin(false);

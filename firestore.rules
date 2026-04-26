@@ -27,21 +27,23 @@ service cloud.firestore {
       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
     }
 
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
     // --- Collections ---
 
-    // Reviews (Collection Group for global queries)
+    // Reviews (Global Collection Group for dynamic ratings)
     match /{path=**}/reviews/{reviewId} {
+      // Publicly readable for all reviews in all firms
       allow read: if true;
       
-      function incoming() { return request.resource.data; }
-      function existing() { return resource.data; }
-
+      // Validation helper for review data integrity
       function isValidReview(data) {
         return isSignedIn() &&
                data.userId == request.auth.uid &&
-               isValidId(data.userId) &&
                data.rating is number && data.rating >= 1 && data.rating <= 5 &&
-               data.comment is string && data.comment.size() <= 2000;
+               data.comment is string && data.comment.size() <= 2000 &&
+               isValidId(data.firmId);
       }
 
       allow create: if isSignedIn() && isValidReview(incoming()) && 
@@ -50,10 +52,18 @@ service cloud.firestore {
       allow update: if isSignedIn() && 
                     (isAdmin() || existing().userId == request.auth.uid) &&
                     incoming().userId == existing().userId &&
+                    incoming().firmId == existing().firmId && // Immutable link
                     incoming().diff(existing()).affectedKeys().hasOnly(['comment', 'rating', 'updatedAt', 'userName']) &&
                     incoming().updatedAt == request.time;
                     
       allow delete: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
+    }
+
+    // Specific match for nested reviews to ensure direct access works
+    match /firms/{firmId}/reviews/{reviewId} {
+      allow read: if true;
+      // Write logic is inherited from the parent/recursive match or can be duplicated if needed
+      // but the /{path=**} above handles it.
     }
 
     // Firms: Publicly readable, admin-only writes
@@ -65,8 +75,8 @@ service cloud.firestore {
     // Reports: Authenticated create, admin read/delete
     match /reports/{reportId} {
       allow create: if isSignedIn() && 
-                    request.resource.data.userId == request.auth.uid &&
-                    request.resource.data.createdAt == request.time;
+                    incoming().userId == request.auth.uid &&
+                    incoming().createdAt == request.time;
       allow read, delete: if isAdmin();
     }
 
@@ -77,16 +87,15 @@ service cloud.firestore {
       function isValidVote(data) {
         return isSignedIn() &&
                data.userId == request.auth.uid &&
-               isValidId(data.userId) &&
                isValidId(data.firmId);
       }
       
       allow create: if isSignedIn() && 
-                    isValidVote(request.resource.data) &&
-                    voteId == request.auth.uid + "_" + request.resource.data.firmId &&
-                    request.resource.data.createdAt == request.time;
+                    isValidVote(incoming()) &&
+                    voteId == request.auth.uid + "_" + incoming().firmId &&
+                    incoming().createdAt == request.time;
                     
-      allow delete: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow delete: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
     }
 
     // Users: Private data
@@ -99,10 +108,12 @@ service cloud.firestore {
                data.uid == userId;
       }
 
-      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow create: if isOwner(userId) && isValidUser(incoming()) && 
+                    incoming().createdAt == request.time;
       allow update: if isOwner(userId) && 
-                    isValidUser(request.resource.data) &&
-                    request.resource.data.email == resource.data.email;
+                    isValidUser(incoming()) &&
+                    incoming().email == existing().email &&
+                    incoming().updatedAt == request.time;
       allow delete: if isOwner(userId) || isAdmin();
     }
 
