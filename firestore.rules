@@ -30,28 +30,33 @@ service cloud.firestore {
 
     // Firms: Publicly readable
     match /firms/{firmId} {
-      allow read: if true;
+      allow read, get, list: if true;
       allow write: if isAdmin();
       
       // Reviews nested within firms
       match /reviews/{reviewId} {
-        allow read: if true;
+        // Explicitly allow get and list for all users (public)
+        allow read, get, list: if true;
+        
         allow create: if isSignedIn() && 
                       incoming().userId == request.auth.uid &&
                       incoming().rating is number && incoming().rating >= 1 && incoming().rating <= 5 &&
                       incoming().comment is string && incoming().comment.size() <= 2000 &&
                       incoming().createdAt == request.time;
+                      
         allow update: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid) &&
                       incoming().userId == existing().userId &&
+                      // Prevent changing the user reference, though merge might allow it if not careful
                       incoming().diff(existing()).affectedKeys().hasOnly(['comment', 'rating', 'updatedAt', 'userName']) &&
                       incoming().updatedAt == request.time;
+                      
         allow delete: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
       }
     }
 
-    // Collection Group Reviews (needed for "My Reviews" page)
+    // Global Collection Group Reviews (needed for "My Reviews" page and dynamic ratings)
     match /{path=**}/reviews/{reviewId} {
-      allow read: if true;
+      allow read, get, list: if true;
     }
 
     // Reports: Authenticated create, admin read/delete
@@ -59,34 +64,39 @@ service cloud.firestore {
       allow create: if isSignedIn() && 
                     incoming().userId == request.auth.uid &&
                     incoming().createdAt == request.time;
-      allow read, delete: if isAdmin();
+      allow read, get, list, delete: if isAdmin();
     }
 
     // Votes
     match /votes/{voteId} {
-      allow read: if true;
+      allow read, get, list: if true;
       allow create: if isSignedIn() && 
                     incoming().userId == request.auth.uid &&
-                    voteId == request.auth.uid + "_" + incoming().firmId &&
+                    voteId == (request.auth.uid + "_" + incoming().firmId) &&
                     incoming().createdAt == request.time;
       allow delete: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
     }
 
     // Users
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create, update: if isOwner(userId) && 
-                            incoming().uid == userId &&
-                            incoming().email is string;
+      allow read, get, list: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && 
+                    incoming().uid == userId &&
+                    incoming().email is string &&
+                    incoming().createdAt == request.time;
+      allow update: if isOwner(userId) && 
+                    incoming().uid == userId &&
+                    incoming().email == existing().email && // Immutable email
+                    incoming().updatedAt == request.time;
       allow delete: if isOwner(userId) || isAdmin();
     }
 
     // System paths
     match /system/{doc=**} {
-      allow read: if true;
+      allow read, get, list: if true;
     }
     match /test/connection {
-      allow read: if true;
+      allow read, get: if true;
     }
   }
 }

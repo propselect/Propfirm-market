@@ -3,18 +3,21 @@ import { getAuth } from 'firebase/auth';
 import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
 
-// Check connection status without blocking UI
+// Check connection status
 async function testConnection() {
   try {
-    // Attempt a silent fetch of a non-existent doc to verify connectivity
     await getDocFromServer(doc(db, 'system', 'ping'));
-  } catch (error) {
-    // Only log to console, avoid annoying the user with alerts unless strictly necessary
-    console.warn("Firestore connectivity check: Operating in possible offline mode or background sync.");
+  } catch (error: any) {
+    if (error?.message?.includes('Missing or insufficient permissions')) {
+       // This is expected for ping if not logged in
+       return;
+    }
+    console.warn("Firestore connectivity check:", error?.message || "Operating in possible offline mode.");
   }
 }
 testConnection();

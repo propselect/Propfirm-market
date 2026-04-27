@@ -25,10 +25,12 @@ export default function Login() {
     } catch (err: any) {
       if (err.code === 'auth/operation-not-allowed') {
         setError('MANUAL_ENTRY_DETACHED: Email login must be enabled in the Firebase Console (Authentication > Sign-in method). Please use "Secure Google Link" or enable manual protocol.');
+      } else if (err.code === 'auth/firebase-app-check-token-is-invalid') {
+        setError('APP_CHECK_ENFORCED: Your Firebase project has App Check enforcement enabled but it is not configured for this domain. Either disable App Check "Enforcement" in the Firebase Console or add this domain to the allowlist.');
       } else if (err.code === 'auth/popup-blocked') {
         setError('POPUP_INTERCEPTED: Browser blocked the secure link. Try opening the terminal in a new tab or allow popups.');
       } else {
-        setError('VERIFICATION_FAILURE: Invalid credentials or network interference.');
+        setError(`VERIFICATION_FAILURE: ${err.message || 'Invalid credentials or network interference.'}`);
       }
     } finally {
       setLoading(false);
@@ -55,6 +57,8 @@ export default function Login() {
     } catch (err: any) {
       if (err.code === 'auth/popup-blocked') {
         setError('POPUP_INTERCEPTED: Browser blocked the connection. Try opening in a new tab.');
+      } else if (err.code === 'auth/firebase-app-check-token-is-invalid') {
+        setError('APP_CHECK_ENFORCED: Firebase App Check is blocking the Google login. Visit the Firebase Console and disable enforcement for Authentication.');
       } else {
         setError(err.message || 'GOOGLE_LINK_FAILURE');
       }

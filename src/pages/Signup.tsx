@@ -52,10 +52,12 @@ export default function Signup() {
     } catch (err: any) {
       if (err.code === 'auth/operation-not-allowed') {
         setError('MANUAL_ENTRY_DETACHED: Email registration must be enabled in the Firebase Console (Authentication > Sign-in method). Please use "Initialize with Google" for priority clearance.');
+      } else if (err.code === 'auth/firebase-app-check-token-is-invalid') {
+        setError('APP_CHECK_ENFORCED: Your Firebase project has App Check enforcement enabled but it is not configured for this domain. Either disable App Check "Enforcement" in the Firebase Console or add this domain to the allowlist.');
       } else if (err.code === 'auth/popup-blocked') {
         setError('POPUP_INTERCEPTED: Browser blocked the initialization. Try opening the terminal in a new tab.');
       } else {
-        setError(err.message || 'REGISTRY_FAILURE');
+        setError(`REGISTRY_FAILURE: ${err.message || 'Unknown verification error'}`);
       }
     } finally {
       setLoading(false);
@@ -83,6 +85,8 @@ export default function Signup() {
     } catch (err: any) {
       if (err.code === 'auth/popup-blocked') {
         setError('POPUP_INTERCEPTED: Browser blocked the initialization. Try opening in a new tab.');
+      } else if (err.code === 'auth/firebase-app-check-token-is-invalid') {
+        setError('APP_CHECK_ENFORCED: Firebase App Check is blocking the initialization. Visit the Firebase Console and disable enforcement for Authentication.');
       } else {
         setError(err.message || 'GOOGLE_LINK_FAILURE');
       }

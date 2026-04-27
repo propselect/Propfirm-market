@@ -20,36 +20,51 @@ async function startServer() {
       return res.status(400).json({ error: "Email is required" });
     }
 
+    // Validate SMTP Host
+    const smtpHost = process.env.SMTP_HOST || "smtp.ethereal.email";
+    const smtpUser = process.env.SMTP_USER;
+    const smtpPass = process.env.SMTP_PASS;
+
+    // Check if SMTP_HOST looks like an email (common misconfiguration)
+    if (smtpHost.includes('@')) {
+      console.error(`Invalid SMTP_HOST: "${smtpHost}". It looks like an email address instead of a mail server hostname (e.g., smtp.gmail.com).`);
+      return res.json({ 
+        message: "Signup successful, but confirmation email failed due to server misconfiguration (SMTP_HOST looks like an email).",
+        warning: "SMTP misconfiguration" 
+      });
+    }
+
     // Nodemailer setup
     const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST || "smtp.ethereal.email",
+      host: smtpHost,
       port: Number(process.env.SMTP_PORT) || 587,
+      secure: Number(process.env.SMTP_PORT) === 465, // true for 465, false for other ports
       auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
+        user: smtpUser,
+        pass: smtpPass,
       },
     });
 
     const mailOptions = {
-      from: '"PropEDGE.COM" <noreply@propedge.com>',
+      from: `"PropEDGE.COM" <${smtpUser || 'noreply@propedge.com'}>`,
       to: email,
       subject: "Welcome to PropEDGE.COM! Your Signup Confirmation",
       html: `
-        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px;">
-          <h1 style="color: #1a202c;">Welcome to PropEDGE.COM, ${name || "Trader"}!</h1>
-          <p style="font-size: 16px; color: #4a5568;">
+        <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e2e8f0; border-radius: 8px; background-color: #ffffff; color: #1a202c;">
+          <h1 style="color: #1a202c; font-size: 24px;">Welcome to PropEDGE.COM, ${name || "Trader"}!</h1>
+          <p style="font-size: 16px; color: #4a5568; line-height: 1.5;">
             Thank you for signing up for the ultimate forex prop firm review platform.
           </p>
-          <p style="font-size: 16px; color: #4a5568;">
+          <p style="font-size: 16px; color: #4a5568; line-height: 1.5;">
             Start exploring our top-rated firms and find the perfect partner for your trading journey on PropEDGE.COM.
           </p>
-          <div style="margin-top: 30px; display: flex; flex-direction: column; gap: 10px;">
-            <a href="${process.env.APP_URL}/firms" style="text-decoration: none; background-color: #2f855a; color: white; padding: 12px 24px; border-radius: 6px; text-align: center; display: inline-block;">
+          <div style="margin-top: 30px; text-align: center;">
+            <a href="${process.env.APP_URL || 'https://propedge.com'}/firms" style="text-decoration: none; background-color: #10b981; color: white; padding: 14px 28px; border-radius: 8px; font-weight: bold; display: inline-block;">
               Browse Prop Firms
             </a>
           </div>
           <hr style="margin: 40px 0; border: none; border-top: 1px solid #edf2f7;" />
-          <p style="font-size: 12px; color: #a0aec0;">
+          <p style="font-size: 12px; color: #a0aec0; text-align: center;">
             If you didn't sign up for this account at PropEDGE.COM, you can safely ignore this email.
           </p>
         </div>
@@ -57,21 +72,24 @@ async function startServer() {
     };
 
     try {
-      if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
+      if (smtpUser && smtpPass) {
         await transporter.sendMail(mailOptions);
-        console.log(`Confirmation email sent to ${email}`);
+        console.log(`Confirmation email sent to ${email} via ${smtpHost}`);
       } else {
         console.log("--- SIMULATED EMAIL (Missing SMTP Config) ---");
-        console.log(`To: ${email}`);
+        console.log(`Target: ${email}`);
         console.log(`Subject: ${mailOptions.subject}`);
         console.log("------------------------");
       }
       res.json({ message: "Confirmation email sent" });
-    } catch (error) {
-      console.error("Error sending email:", error);
+    } catch (error: any) {
+      console.error("Error sending email:", error.message);
       // Even if email fails, we don't want to crash the signup process for the user
-      // We just log it and send a success response to the client
-      res.json({ message: "Signup successful, though confirmation email failed to send.", warning: "Email delivery failure" });
+      res.json({ 
+        message: "Signup successful, though confirmation email failed to send.", 
+        warning: "Email delivery failure",
+        details: error.message 
+      });
     }
   });
 
