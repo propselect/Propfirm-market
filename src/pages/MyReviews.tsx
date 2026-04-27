@@ -63,6 +63,7 @@ export default function MyReviews() {
     }, (error) => {
       console.error("Error fetching my reviews:", error);
       setLoading(false);
+      handleFirestoreError(error, OperationType.GET, 'collection_group/reviews');
     });
 
     return () => unsubscribe();

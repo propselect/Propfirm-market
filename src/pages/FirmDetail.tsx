@@ -9,6 +9,7 @@ import { collection, query, where, getDocs, onSnapshot, doc, setDoc, deleteDoc, 
 import { PropFirm } from '../types';
 import ReviewSection from '../components/ReviewSection';
 import ReportFirmModal from '../components/ReportFirmModal';
+import { handleFirestoreError, OperationType } from '../lib/firebase-errors';
 import { useAuthState } from 'react-firebase-hooks/auth';
 
 export default function FirmDetail() {
@@ -70,9 +71,7 @@ export default function FirmDetail() {
       }
     }, (error) => {
       console.error('Review snapshot failed:', error);
-      import('../lib/firebase-errors').then(({ handleFirestoreError, OperationType }) => {
-        handleFirestoreError(error, OperationType.LIST, `firms/${firm.id}/reviews`);
-      });
+      handleFirestoreError(error, OperationType.LIST, `firms/${firm.id}/reviews`);
     });
 
     return () => unsubscribe();

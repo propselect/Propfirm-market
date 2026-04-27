@@ -24,9 +24,11 @@ export default function Login() {
       navigate('/firms');
     } catch (err: any) {
       if (err.code === 'auth/operation-not-allowed') {
-        setError('Email login is currently disabled. Please use "Secure Google Link" below.');
+        setError('MANUAL_ENTRY_DETACHED: Email login must be enabled in the Firebase Console (Authentication > Sign-in method). Please use "Secure Google Link" or enable manual protocol.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('POPUP_INTERCEPTED: Browser blocked the secure link. Try opening the terminal in a new tab or allow popups.');
       } else {
-        setError('Invalid email or password. Please try again.');
+        setError('VERIFICATION_FAILURE: Invalid credentials or network interference.');
       }
     } finally {
       setLoading(false);
@@ -51,7 +53,11 @@ export default function Login() {
 
       navigate('/firms');
     } catch (err: any) {
-      setError(err.message);
+      if (err.code === 'auth/popup-blocked') {
+        setError('POPUP_INTERCEPTED: Browser blocked the connection. Try opening in a new tab.');
+      } else {
+        setError(err.message || 'GOOGLE_LINK_FAILURE');
+      }
     } finally {
       setGoogleLoading(false);
     }

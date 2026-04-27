@@ -51,9 +51,11 @@ export default function Signup() {
       navigate('/firms');
     } catch (err: any) {
       if (err.code === 'auth/operation-not-allowed') {
-        setError('Manual entry is currently restricted in the system console. Please use "Initialize with Google" for priority clearance.');
+        setError('MANUAL_ENTRY_DETACHED: Email registration must be enabled in the Firebase Console (Authentication > Sign-in method). Please use "Initialize with Google" for priority clearance.');
+      } else if (err.code === 'auth/popup-blocked') {
+        setError('POPUP_INTERCEPTED: Browser blocked the initialization. Try opening the terminal in a new tab.');
       } else {
-        setError(err.message);
+        setError(err.message || 'REGISTRY_FAILURE');
       }
     } finally {
       setLoading(false);
@@ -79,7 +81,11 @@ export default function Signup() {
 
       navigate('/firms');
     } catch (err: any) {
-      setError(err.message);
+      if (err.code === 'auth/popup-blocked') {
+        setError('POPUP_INTERCEPTED: Browser blocked the initialization. Try opening in a new tab.');
+      } else {
+        setError(err.message || 'GOOGLE_LINK_FAILURE');
+      }
     } finally {
       setGoogleLoading(false);
     }

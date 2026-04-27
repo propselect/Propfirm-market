@@ -2,7 +2,7 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Global Safety Net
+    // 0. Global Safety Net - Default deny
     match /{document=**} {
       allow read, write: if false;
     }
@@ -23,53 +23,35 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
 
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
 
     // --- Collections ---
 
-    // Reviews (Global Collection Group for dynamic ratings)
-    match /{path=**}/reviews/{reviewId} {
-      // Publicly readable for all reviews in all firms
-      allow read: if true;
-      
-      // Validation helper for review data integrity
-      function isValidReview(data) {
-        return isSignedIn() &&
-               data.userId == request.auth.uid &&
-               data.rating is number && data.rating >= 1 && data.rating <= 5 &&
-               data.comment is string && data.comment.size() <= 2000 &&
-               isValidId(data.firmId);
-      }
-
-      allow create: if isSignedIn() && isValidReview(incoming()) && 
-                    incoming().createdAt == request.time;
-      
-      allow update: if isSignedIn() && 
-                    (isAdmin() || existing().userId == request.auth.uid) &&
-                    incoming().userId == existing().userId &&
-                    incoming().firmId == existing().firmId && // Immutable link
-                    incoming().diff(existing()).affectedKeys().hasOnly(['comment', 'rating', 'updatedAt', 'userName']) &&
-                    incoming().updatedAt == request.time;
-                    
-      allow delete: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
-    }
-
-    // Specific match for nested reviews to ensure direct access works
-    match /firms/{firmId}/reviews/{reviewId} {
-      allow read: if true;
-      // Write logic is inherited from the parent/recursive match or can be duplicated if needed
-      // but the /{path=**} above handles it.
-    }
-
-    // Firms: Publicly readable, admin-only writes
+    // Firms: Publicly readable
     match /firms/{firmId} {
       allow read: if true;
       allow write: if isAdmin();
+      
+      // Reviews nested within firms
+      match /reviews/{reviewId} {
+        allow read: if true;
+        allow create: if isSignedIn() && 
+                      incoming().userId == request.auth.uid &&
+                      incoming().rating is number && incoming().rating >= 1 && incoming().rating <= 5 &&
+                      incoming().comment is string && incoming().comment.size() <= 2000 &&
+                      incoming().createdAt == request.time;
+        allow update: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid) &&
+                      incoming().userId == existing().userId &&
+                      incoming().diff(existing()).affectedKeys().hasOnly(['comment', 'rating', 'updatedAt', 'userName']) &&
+                      incoming().updatedAt == request.time;
+        allow delete: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
+      }
+    }
+
+    // Collection Group Reviews (needed for "My Reviews" page)
+    match /{path=**}/reviews/{reviewId} {
+      allow read: if true;
     }
 
     // Reports: Authenticated create, admin read/delete
@@ -80,64 +62,31 @@ service cloud.firestore {
       allow read, delete: if isAdmin();
     }
 
-    // Votes: Public read, authenticated individual write
+    // Votes
     match /votes/{voteId} {
       allow read: if true;
-      
-      function isValidVote(data) {
-        return isSignedIn() &&
-               data.userId == request.auth.uid &&
-               isValidId(data.firmId);
-      }
-      
       allow create: if isSignedIn() && 
-                    isValidVote(incoming()) &&
+                    incoming().userId == request.auth.uid &&
                     voteId == request.auth.uid + "_" + incoming().firmId &&
                     incoming().createdAt == request.time;
-                    
       allow delete: if isSignedIn() && (isAdmin() || existing().userId == request.auth.uid);
     }
 
-    // Users: Private data
+    // Users
     match /users/{userId} {
       allow read: if isOwner(userId) || isAdmin();
-      
-      function isValidUser(data) {
-        return data.keys().hasAll(['email', 'uid', 'createdAt']) &&
-               data.email is string && data.email.size() <= 256 &&
-               data.uid == userId;
-      }
-
-      allow create: if isOwner(userId) && isValidUser(incoming()) && 
-                    incoming().createdAt == request.time;
-      allow update: if isOwner(userId) && 
-                    isValidUser(incoming()) &&
-                    incoming().email == existing().email &&
-                    incoming().updatedAt == request.time;
+      allow create, update: if isOwner(userId) && 
+                            incoming().uid == userId &&
+                            incoming().email is string;
       allow delete: if isOwner(userId) || isAdmin();
     }
 
-    // Subscribers: Newsletter
-    match /subscribers/{subscriberId} {
-      allow create: if request.resource.data.email is string && 
-                      request.resource.data.email.size() <= 256 &&
-                      request.resource.data.createdAt == request.time;
-      allow read, list, delete: if isAdmin();
+    // System paths
+    match /system/{doc=**} {
+      allow read: if true;
     }
-
-    // Admins list (if needed as a collection)
-    match /admins/{userId} {
-      allow read: if isSignedIn();
-      allow write: if false; // Only manageable via console or super admin
-    }
-
-    // Connectivity test path
     match /test/connection {
       allow read: if true;
     }
-    match /system/ping {
-      allow read: if true;
-    }
-
   }
 }
